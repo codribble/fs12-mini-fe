@@ -1,21 +1,22 @@
 // 이 파일은 참고용 샘플입니다. 실제 구현 시 이 패턴을 따라 작성하세요.
 "use client";
 
+import Link from "next/link";
 import { useSamples, useSample } from "@/hooks/queries/useSample";
 import { useAuth } from "@/contexts/AuthContext";
 
 export default function SamplePage() {
-  // ✅ 목록 조회
+  // NOTE: 목록 조회
   const {
     data: samples,
     isLoading: isSamplesLoading,
     isError: isSamplesError,
   } = useSamples();
 
-  // ✅ 단건 조회
+  // NOTE: 단건 조회
   const { data: sample, isLoading: isSampleLoading } = useSample(1);
 
-  // ✅ AuthContext 사용
+  // NOTE: AuthContext 사용
   const { user, isLoggedIn, logout } = useAuth();
 
   if (isSamplesLoading || isSampleLoading) return <p>로딩 중...</p>;
@@ -32,7 +33,7 @@ export default function SamplePage() {
           <button onClick={logout}>로그아웃</button>
         </div>
       ) : (
-        <a href="/login">로그인</a>
+        <Link href="/login">로그인</Link>
       )}
 
       {/* 목록 */}
