@@ -1,82 +1,80 @@
-import axios from "axios";
-
 const IS_DEV =
   typeof window !== "undefined" &&
   (window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1");
 
-const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080",
-  withCredentials: true, // 프로덕션에서 httpOnly 쿠키(refreshToken) 자동 전송
-});
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-// 요청 인터셉터: accessToken 자동 첨부
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("accessToken");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// 응답 인터셉터: accessToken 만료 시 자동 갱신
+// refresh 중복 방지
 let isRefreshing = false;
 let pendingRequests: Array<(token: string) => void> = [];
 
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+const refreshAccessToken = async (): Promise<string> => {
+  const body = IS_DEV
+    ? JSON.stringify({ refreshToken: localStorage.getItem("refreshToken") })
+    : undefined;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
+  const res = await fetch(`${BASE_URL}/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body,
+  });
 
-      if (isRefreshing) {
-        // 이미 갱신 중이면 대기 후 재시도
-        return new Promise((resolve) => {
-          pendingRequests.push((token) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          });
-        });
-      }
+  if (!res.ok) throw new Error("refresh 실패");
 
-      isRefreshing = true;
+  const data = await res.json();
+  localStorage.setItem("accessToken", data.accessToken);
+  return data.accessToken;
+};
 
-      try {
-        // 개발: body로 refreshToken 전달 / 프로덕션: httpOnly 쿠키로 자동 전달
-        const body = IS_DEV
-          ? { refreshToken: localStorage.getItem("refreshToken") }
-          : undefined;
+const clearAuth = () => {
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("user");
+  if (IS_DEV) localStorage.removeItem("refreshToken");
+  window.location.href = "/login";
+};
 
-        const res = await axios.post(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/auth/refresh`,
-          body,
-          { withCredentials: true }
-        );
+export const fetchWithAuth = async (
+  path: string,
+  options: RequestInit = {}
+): Promise<Response> => {
+  const token = localStorage.getItem("accessToken");
 
-        const newAccessToken = res.data.accessToken;
-        localStorage.setItem("accessToken", newAccessToken);
+  const makeRequest = (accessToken: string | null) =>
+    fetch(`${BASE_URL}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+    });
 
-        pendingRequests.forEach((cb) => cb(newAccessToken));
-        pendingRequests = [];
+  const res = await makeRequest(token);
 
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
-        return api(originalRequest);
-      } catch {
-        // refresh 실패 → 로그아웃
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("user");
-        if (IS_DEV) localStorage.removeItem("refreshToken");
-        window.location.href = "/login";
-        return Promise.reject(error);
-      } finally {
-        isRefreshing = false;
-      }
-    }
+  if (res.status !== 401) return res;
 
-    return Promise.reject(error);
+  // 401 처리: accessToken 갱신 후 재시도
+  if (isRefreshing) {
+    return new Promise((resolve) => {
+      pendingRequests.push(async (newToken) => {
+        resolve(makeRequest(newToken));
+      });
+    });
   }
-);
 
-export default api;
+  isRefreshing = true;
+  try {
+    const newToken = await refreshAccessToken();
+    pendingRequests.forEach((cb) => cb(newToken));
+    pendingRequests = [];
+    return makeRequest(newToken);
+  } catch {
+    clearAuth();
+    throw new Error("인증이 만료되었습니다. 다시 로그인해주세요.");
+  } finally {
+    isRefreshing = false;
+  }
+};
