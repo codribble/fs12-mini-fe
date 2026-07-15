@@ -13,6 +13,13 @@ interface AuthContextType {
   login: (accessToken: string, user: User, refreshToken?: string) => void;
   logout: () => void;
   isLoggedIn: boolean;
+  // localStorage에서 로그인 상태를 복원하는 마운트 useEffect가 끝났는지 여부.
+  // React는 자식의 useEffect를 부모(AuthProvider)보다 먼저 실행하므로, 하드 리로드 시
+  // "로그인 안 했으면 /login으로" 같은 가드를 자식 페이지의 useEffect에 그대로 넣으면
+  // 이 복원이 끝나기 전(아직 isLoggedIn이 초기값 false인) 순간에 먼저 실행되어,
+  // 실제로는 로그인된 사용자도 로그인 페이지로 튕겨나가는 문제가 생긴다.
+  // 가드를 쓰는 페이지는 이 값이 true가 될 때까지 리다이렉트 판단을 보류해야 한다.
+  isInitialized: boolean;
 }
 
 // localhost 포함 개발 환경이면 true
@@ -26,6 +33,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -35,6 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(JSON.parse(savedUser));
       setIsLoggedIn(true);
     }
+    // 로그인 상태든 아니든, 복원 시도가 끝났다는 것만 알려주면 된다.
+    setIsInitialized(true);
   }, []);
 
   const login = (accessToken: string, user: User, refreshToken?: string) => {
@@ -67,7 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoggedIn }}>
+    <AuthContext.Provider
+      value={{ user, login, logout, isLoggedIn, isInitialized }}
+    >
       {children}
     </AuthContext.Provider>
   );
