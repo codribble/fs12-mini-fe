@@ -14,4 +14,10 @@ export const QUERY_KEYS = {
     detail: (id: number) =>
       [...QUERY_KEYS.product.all(), "detail", id] as const,
   },
+  review: {
+    all: () => ["review"] as const,
+    // 리뷰는 상품별로만 조회하므로(전체 리뷰 목록 화면이 없음) productId를 키에 포함시킨다.
+    list: (productId: number) =>
+      [...QUERY_KEYS.review.all(), "list", productId] as const,
+  },
 };
