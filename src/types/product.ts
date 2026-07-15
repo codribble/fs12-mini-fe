@@ -8,6 +8,12 @@ export interface Product {
   price: number;
   category: string;
   s3Key: string;
+  // s3Key와 하는 일이 다르다 — s3Key는 상품 이미지가 S3 어디에 있는지(내부 저장 위치)이고,
+  // link는 사용자가 직접 입력하는 임의의 외부 참조 링크(원 판매처 등)다. "S3 업로드 후
+  // 리졸브된 이미지 URL을 여기에 저장"하는 용도로 쓸 수도 있다고 스펙 작성자가 언급했지만,
+  // 이 프로젝트는 이미지 URL을 getProductImageUrl(s3Key)로 그때그때 계산해서 쓰기 때문에
+  // (services/product.ts) link에 이미지 URL을 중복 저장하지 않기로 했다 — s3Key만으로
+  // 충분하고, link 자체를 지우는 것도 검토했으나 Notion이 제공한 스키마에 있는 필드라 유지.
   link: string | null;
   avgRating: number;
   reviewCount: number;
