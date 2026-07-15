@@ -50,10 +50,16 @@ export default function ProductDetailPage() {
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
     // 이미지(s3Key) 재업로드는 이번 Phase 범위 밖이라 수정 바디에 포함하지 않는다.
+    //
+    // link는 undefined가 아니라 null로 보내야 한다: JSON.stringify는 값이 undefined인
+    // 키를 요청 바디에서 아예 빼버리는데, PATCH는 부분 수정이라 "키가 없음 = 이 필드는
+    // 건드리지 말라"로 해석한다(BE도 동일하게 Prisma가 undefined면 필드를 그대로 둔다).
+    // 그래서 link를 비워서 지우려는 의도로 undefined를 보내면 서버는 "손대지 마라"로
+    // 받아들여서 기존 값이 그대로 남는다 — null을 명시적으로 보내야 실제로 지워진다.
     updateProduct(
       {
         id: productId,
-        body: { name, price: Number(price), category, link: link || undefined },
+        body: { name, price: Number(price), category, link: link || null },
       },
       {
         onSuccess: () => {

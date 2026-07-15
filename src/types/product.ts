@@ -22,12 +22,16 @@ export interface Product {
 
 // POST /products 요청 바디. avgRating/reviewCount는 서버가 리뷰 등록/수정/삭제 시
 // 트랜잭션으로 자동 계산하는 값이라 클라이언트가 보내지 않는다.
+//
+// link가 string뿐 아니라 null도 받는 이유: 이 타입은 PATCH(Partial<CreateProductRequest>)
+// 바디로도 재사용되는데, 상품 수정 화면에서 link를 지우려면 undefined(필드를 안 보냄 = 서버가
+// 기존 값을 유지)가 아니라 null(명시적으로 지움)을 보내야 한다(products/[id]/page.tsx 참고).
 export interface CreateProductRequest {
   name: string;
   price: number;
   category: string;
   s3Key: string;
-  link?: string;
+  link?: string | null;
 }
 
 // GET /products 쿼리 파라미터. cursor는 "마지막으로 받은 항목의 id"를 넘기면
